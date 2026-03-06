@@ -22,7 +22,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git curl wget zip unzip tar ninja-build cmake python3 python3-pip openjdk-17-jdk build-essential
+          sudo apt-get install -y git curl wget zip unzip tar xz-utils ninja-build cmake python3 python3-pip openjdk-17-jdk build-essential
 
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
@@ -64,8 +64,13 @@ jobs:
             --build=build/${{ matrix.abi }} \
             --protoc=$PROTOC_PATH
 
-      - name: Upload Artifacts
+      - name: Compress Build Directory
+        run: |
+          echo "Compressing ./build directory to minimum size using tar.xz..."
+          XZ_OPT=-9 tar -cJf android-sdk-tools-${{ matrix.abi }}.tar.xz build/
+
+      - name: Upload Compressed Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sdk-tools-${{ matrix.abi }}
-          path: build/${{ matrix.abi }}/*
+          name: sdk-tools-${{ matrix.abi }}-tar-xz
+          path: android-sdk-tools-${{ matrix.abi }}.tar.xz
