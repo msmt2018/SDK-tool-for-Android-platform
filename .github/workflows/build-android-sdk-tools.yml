@@ -33,7 +33,7 @@ jobs:
         run: |
           python3 get_source.py --tags ${{ github.event.inputs.android_tag }}
 
-   - name: Build Protobuf
+      - name: Build Protobuf
         run: |
           cd src/protobuf
           mkdir build && cd build
