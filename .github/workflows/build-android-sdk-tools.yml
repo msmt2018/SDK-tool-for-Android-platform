@@ -33,21 +33,26 @@ jobs:
         run: |
           python3 get_source.py --tags ${{ github.event.inputs.android_tag }}
 
-      - name: Build Protobuf
+   - name: Build Protobuf
         run: |
           cd src/protobuf
           mkdir build && cd build
+          
           cmake -GNinja \
             -Dprotobuf_BUILD_TESTS=OFF \
+            -Dprotobuf_BUILD_EXAMPLES=OFF \
             -DCMAKE_BUILD_TYPE=Release \
             ..
             
-          cmake -GNinja -Dprotobuf_BUILD_TESTS=OFF ..
-          ninja
+          if [ ! -f "config.h" ]; then
+             echo "config.h not found, generating stub..."
+             cp ../src/google/protobuf/stubs/config.h.in config.h || touch config.h
+          fi
+          
+          ninja protoc
 
       - name: Build SDK Tools for ${{ matrix.abi }}
         run: |
-          # 获取 NDK 路径
           NDK_PATH=$ANDROID_NDK_HOME
           PROTOC_PATH=$(pwd)/src/protobuf/build/protoc
           
