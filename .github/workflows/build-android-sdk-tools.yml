@@ -1,0 +1,76 @@
+name: Build Android SDK Tools
+
+on:
+  workflow_dispatch:
+    inputs:
+      android_tag:
+        description: 'Android Tag/Branch (e.g., platform-tools-35.0.2)'
+        required: true
+        default: 'platform-tools-35.0.2'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a, x86, x86_64]
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl wget zip unzip tar xz-utils ninja-build cmake python3 python3-pip openjdk-17-jdk build-essential
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: 'r27b'
+
+      - name: Pull Source Code
+        run: |
+          python3 get_source.py --tags ${{ github.event.inputs.android_tag }}
+
+      - name: Build Protobuf
+        run: |
+          cd src/protobuf
+          mkdir build && cd build
+          
+          cmake -GNinja \
+            -Dprotobuf_BUILD_TESTS=OFF \
+            -Dprotobuf_BUILD_EXAMPLES=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            ..
+            
+          if [ ! -f "config.h" ]; then
+             echo "config.h not found, generating stub..."
+             cp ../src/google/protobuf/stubs/config.h.in config.h || touch config.h
+          fi
+          
+          ninja protoc
+
+      - name: Build SDK Tools for ${{ matrix.abi }}
+        run: |
+          NDK_PATH=$ANDROID_NDK_HOME
+          PROTOC_PATH=$(pwd)/src/protobuf/build/protoc
+          
+          echo "Building for ${{ matrix.abi }}..."
+          
+          python3 build.py \
+            --ndk=$NDK_PATH \
+            --abi=${{ matrix.abi }} \
+            --build=build/${{ matrix.abi }} \
+            --protoc=$PROTOC_PATH
+
+      - name: Compress Build Directory
+        run: |
+          echo "Compressing ./build directory to minimum size using tar.xz..."
+          XZ_OPT=-9 tar -cJf android-sdk-tools-${{ matrix.abi }}.tar.xz build/
+
+      - name: Upload Compressed Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-tools-${{ matrix.abi }}-tar-xz
+          path: android-sdk-tools-${{ matrix.abi }}.tar.xz
