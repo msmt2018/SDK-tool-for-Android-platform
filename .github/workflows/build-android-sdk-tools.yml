@@ -1,0 +1,64 @@
+name: Build Android SDK Tools
+
+on:
+  workflow_dispatch:
+    inputs:
+      android_tag:
+        description: 'Android Tag/Branch (e.g., platform-tools-35.0.2)'
+        required: true
+        default: 'platform-tools-35.0.2'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a, x86, x86_64]
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl wget zip unzip tar ninja-build cmake python3 python3-pip openjdk-17-jdk build-essential
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: 'r27b' # 对应你要求的 NDK 27+
+
+      - name: Pull Source Code
+        run: |
+          # 替换 repo 源为国内源 (如果有需要，保持原逻辑)
+          python3 get_source.py --tags ${{ github.event.inputs.android_tag }}
+
+      - name: Build Protobuf
+        run: |
+          cd src/protobuf
+          mkdir build && cd build
+          cmake -GNinja -Dprotobuf_BUILD_TESTS=OFF ..
+          ninja
+        # 记录 protoc 路径供后续使用
+        # 假设编译产物在 src/protobuf/build/protoc
+
+      - name: Build SDK Tools for ${{ matrix.abi }}
+        run: |
+          # 获取 NDK 路径
+          NDK_PATH=$ANDROID_NDK_HOME
+          PROTOC_PATH=$(pwd)/src/protobuf/build/protoc
+          
+          echo "Building for ${{ matrix.abi }}..."
+          
+          python3 build.py \
+            --ndk=$NDK_PATH \
+            --abi=${{ matrix.abi }} \
+            --build=build/${{ matrix.abi }} \
+            --protoc=$PROTOC_PATH
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-tools-${{ matrix.abi }}
+          path: build/${{ matrix.abi }}/*
