@@ -27,21 +27,23 @@ jobs:
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: 'r27b' # 对应你要求的 NDK 27+
+          ndk-version: 'r27b'
 
       - name: Pull Source Code
         run: |
-          # 替换 repo 源为国内源 (如果有需要，保持原逻辑)
           python3 get_source.py --tags ${{ github.event.inputs.android_tag }}
 
       - name: Build Protobuf
         run: |
           cd src/protobuf
           mkdir build && cd build
+          cmake -GNinja \
+            -Dprotobuf_BUILD_TESTS=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            ..
+            
           cmake -GNinja -Dprotobuf_BUILD_TESTS=OFF ..
           ninja
-        # 记录 protoc 路径供后续使用
-        # 假设编译产物在 src/protobuf/build/protoc
 
       - name: Build SDK Tools for ${{ matrix.abi }}
         run: |
